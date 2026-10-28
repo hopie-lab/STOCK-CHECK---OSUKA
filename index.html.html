@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stock Check</title>
+<style>
+/* Layout: one centered column, big search up top, filter chips, then a sortable table that turns into stacked rows on phones. */
+:root{
+  --bg:#ffffff;
+  --fg:#1d1d1f;
+  --muted:#6e6e73;
+  --line:#e8e8ed;
+  --soft:#f5f5f7;
+  --accent:#0071e3;
+  --good:#1f8a4c; --good-bg:#e8f6ee;
+  --warn:#a15c00; --warn-bg:#fff3de;
+  --bad:#c4291c;  --bad-bg:#fdecea;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","Sukhumvit Set","Thonburi","Noto Sans Thai","Segoe UI",Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);color:var(--fg);font-family:var(--font);
+  font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
+  padding-block:40px 64px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.wrap{max-width:1040px;margin:0 auto;min-width:0}
+header{display:flex;flex-direction:column;gap:6px;margin-bottom:28px}
+.eyebrow{font-size:13px;color:var(--muted);letter-spacing:.02em}
+h1{margin:0;font-size:clamp(30px,5vw,44px);line-height:1.08;font-weight:700;letter-spacing:-.025em;text-wrap:balance}
+.sub{color:var(--muted);font-size:16px;margin:0}
+
+.search{position:relative;margin-bottom:16px}
+.search svg{position:absolute;left:16px;top:50%;transform:translateY(-50%);width:20px;height:20px;color:var(--muted);pointer-events:none}
+#q{
+  width:100%;height:56px;border:1px solid var(--line);background:var(--soft);
+  border-radius:14px;padding:0 48px 0 48px;font:inherit;font-size:17px;color:var(--fg);
+  transition:background .15s,border-color .15s,box-shadow .15s;
+}
+#q::placeholder{color:#8e8e93}
+#q:focus{outline:none;background:#fff;border-color:var(--accent);box-shadow:0 0 0 4px rgba(0,113,227,.15)}
+#clear{
+  position:absolute;right:10px;top:50%;transform:translateY(-50%);width:32px;height:32px;border:0;border-radius:50%;
+  background:#d2d2d7;color:#fff;font-size:16px;line-height:1;cursor:pointer;display:none;
+}
+#clear.on{display:block}
+#clear:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  font:inherit;font-size:14px;border:1px solid var(--line);background:#fff;color:var(--fg);
+  padding:7px 14px;border-radius:999px;cursor:pointer;display:inline-flex;gap:8px;align-items:center;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.chip:hover{background:var(--soft)}
+.chip[aria-pressed="true"]{background:var(--fg);border-color:var(--fg);color:#fff}
+.chip .n{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.chip[aria-pressed="true"] .n{color:#c7c7cc}
+.chip:focus-visible,th button:focus-visible,#more:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.count{color:var(--muted);font-size:14px;font-variant-numeric:tabular-nums}
+
+.tablebox{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:0}
+thead th{
+  text-align:left;font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  background:#fbfbfd;border-bottom:1px solid var(--line);padding:0;white-space:nowrap;
+}
+th button{
+  all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:6px;width:100%;
+  padding:12px 16px;
+}
+th button:hover{color:var(--fg)}
+th.num button{justify-content:flex-end}
+th .arrow{font-size:10px;opacity:0}
+th[aria-sort="ascending"] .arrow,th[aria-sort="descending"] .arrow{opacity:1;color:var(--accent)}
+th[aria-sort="ascending"],th[aria-sort="descending"]{color:var(--fg)}
+tbody td{padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:top;min-width:0}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:#fafafc}
+.sku{font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;font-size:13px;white-space:nowrap;color:var(--fg)}
+.name{overflow-wrap:anywhere}
+.alias{color:var(--muted);overflow-wrap:anywhere;font-size:14px}
+.qty{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;font-size:16px;white-space:nowrap}
+td.status{white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;padding:3px 10px;border-radius:999px}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.p-in{color:var(--good);background:var(--good-bg)}
+.p-low{color:var(--warn);background:var(--warn-bg)}
+.p-out{color:var(--bad);background:var(--bad-bg)}
+mark{background:#fff2a8;color:inherit;border-radius:3px;padding:0 1px}
+.qty.zero{color:var(--bad)}
+
+.empty{padding:56px 16px;text-align:center;color:var(--muted)}
+.empty strong{display:block;color:var(--fg);font-size:17px;margin-bottom:4px}
+.foot{display:flex;justify-content:center;padding:20px}
+#more{
+  font:inherit;font-size:15px;border:1px solid var(--line);background:#fff;color:var(--accent);
+  padding:10px 22px;border-radius:999px;cursor:pointer;
+}
+#more:hover{background:var(--soft)}
+.note{color:var(--muted);font-size:13px;margin-top:16px}
+
+@media (max-width:720px){
+  body{padding-block:28px 48px}
+  thead{display:none}
+  table,tbody,tr,td{display:block}
+  tbody tr{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:14px 16px;border-bottom:1px solid var(--line)}
+  tbody tr:last-child{border-bottom:0}
+  tbody td{padding:0;border:0}
+  tbody tr:hover td{background:transparent}
+  td.c-sku{grid-column:1;grid-row:1}
+  td.c-qty{grid-column:2;grid-row:1 / span 2;align-self:center;font-size:22px}
+  td.c-name{grid-column:1;grid-row:2}
+  td.c-alias{grid-column:1;grid-row:3}
+  td.c-alias:empty{display:none}
+  td.c-status{grid-column:1;grid-row:4;margin-top:4px}
+  .sortbar{display:flex}
+}
+.sortbar{display:none;gap:8px;align-items:center;margin-bottom:12px;font-size:14px;color:var(--muted)}
+.sortbar select{font:inherit;font-size:14px;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow" id="asof">Saved copy from 26 Oct 2026</div>
+    <h1>Stock Check</h1>
+    <p class="sub">Search by SKU, product name or model number to see what is available now.</p>
+  </header>
+
+  <div class="search">
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+    <input id="q" type="search" inputmode="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+      placeholder="Search SKU or product, e.g. AOSK0542 or OCD803" aria-label="Search SKU or product name">
+    <button id="clear" type="button" aria-label="Clear search">&#215;</button>
+  </div>
+
+  <div class="bar">
+    <div class="chips" id="chips" role="group" aria-label="Filter by stock level"></div>
+    <div class="count" id="count" aria-live="polite"></div>
+  </div>
+
+  <div class="sortbar">
+    <label for="sortsel">Sort</label>
+    <select id="sortsel">
+      <option value="sku-asc">SKU A to Z</option>
+      <option value="name-asc">Product A to Z</option>
+      <option value="qty-desc">Stock, high to low</option>
+      <option value="qty-asc">Stock, low to high</option>
+    </select>
+  </div>
+
+  <div class="tablebox">
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col" data-k="sku"><button type="button">SKU <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="name"><button type="button">Product <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="alias"><button type="button">Short name <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="qty" class="num"><button type="button">Available <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="status"><button type="button">Status <span class="arrow">&#9650;</span></button></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty" hidden><strong>No products found</strong>Check the spelling or try fewer letters of the SKU.</div>
+    <div class="foot" id="foot" hidden><button id="more" type="button"></button></div>
+  </div>
+  <p class="note">Low stock means 10 units or fewer. Quantities are units available at the time of the last update.</p>
+</div>
+
+<script>
+var RAW = [["AOSK0542","สว่านไร้สาย 2 ระบบ OCD803-D1 OSUKA","",0],["AOSK0544","ด้ามฟรีไร้สายไร้แปรงถ่าน OCRW863-D1 OSUKA","",1000],["HOSK0480","Beach Flag-S OSUKA 2026","",60],["HOSK0481","Beach Flag-L OSUKA 2026","",28],["AOSK0577","สว่านโรตารี่ไร้สาย 2ระบบ OPCRH741-K1","OPCRH741-K1",470],["AOSK0540","พัดลมไร้สาย 9\" OCF661-1 OSUKA","",4837],["AOSK0541","พัดลมไร้สาย 9\" OCF661-2 OSUKA","",6255],["AOSK0539","พัดลมไร้สาย 9\" OCF661-N OSUKA","",4872],["AOSK0551","ดอกโฮลซอเจาะคอนกรีต 102มม. OSHS4102 OSUKA","OSHS4102",3983],["AOSK0552","ดอกโฮลซอเจาะคอนกรีต 76มม. OSHS4076 OSUKA","OSHS4076",1985],["AOSK0553","ดอกโฮลซอเจาะคอนกรีต 38มม. OSHS4038 OSUKA","OSHS4038",3467],["AOSK0554","ดอกโฮลซอเจาะคอนกรีต 32mm. OSHS4032 OSUKA","OSHS4032",1978],["AOSK0555","ดอกโฮลซอเจาะคอนกรีต 25mm. OSHS4025 OSUKA","OSHS4025",5970],["AOSK0536","ชั้นวางแบตเตอรี่ SD-OSLIKA-04 Fit for battery show","",98],["HOSK0038","แก้วเก็บความเย็น ขนาด 30 Oz. ความจุ 900ML.( (สีดำ)","",23],["AOSK0545","สว่านกระแทกไร้สายไร้แปรงถ่าน 16V OCCD-OXT001-A1 OSUKA","OCCD001-A1",1990],["AOSK0538","สว่านกระแทกไร้สายไร้แปรงถ่าน 16V OCCHD-OXT002-A2 OSUKA","",4495],["DKPP0001","ไม้บรรทัด 48 นิ้ว t - square KAPRO","",18],["HOSK0033","หมวกแก๊ป (สีดำ) OSUKA","",475],["AOSK0535","สว่านกระแทกไร้สายไร้แปรงถ่าน 16V OCCHD-OXT002-A1 OSUKA","OCCHD-OXT002-A1",4790],["KALS0012N","ขาตั้งรถยนด์แบบเฟือง 3 ตัน 4 ขา สีแดง ALSO","ขาตั้งรถยนต์",10],["KALS1013","ขาตั้งรถยนต์ 2 ตัน AM1101 สีแดง ALSO","",14],["AOSK0537","แบตเตอรี่ Tabless 3.0Ah OCTB-2030","",2000],["AOSK0468","เลื่อยชักไร้สาย 20v Osuka OCRS842-N","",1002],["AOSK0466","เลื่อยชักมือเดียวไร้สาย 20v Osuka OCRS841-N","OCRS841-N",0],["AOSK0486","เลื่อยโซ่ไร้สาย 40V OCCS531-N","OCCS531-N",450],["AOSK0496","OSAC1211 ใบเลื่อยชักตัดโลหะ 6 นิ้ว","OSAC1211",319],["AOSK0497","OSAC1212 ใบเลื่อยชักตัดไม้ 6 นิ้ว","OSAC1212",331],["AOSK0498","OSAC1213 ใบเลื่อยชักตัดโลหะ 9 นิ้ว","OSAC1213",202],["AOSK0499","ใบเลื่อยชักตัดไม้ 9 นิ้ว Osuka OSAC1214","OSAC1214",216],["AOSK0452","บล็อกไฟฟ้าไร้สายไร้แปรงถ่าน OSID-520 (ตัวเปลือย)","",531],["JOSK0124","เลื่อยโซ่ไร้สายไร้แปรงถ่าน 11.5 นิ้ว 20V OCCS430-E1 OSUKA","",1151],["IHTP0001","ลูกแม็กขาคู่ รุ่น 410J HI-TOP","ลูกแม็กขาคู่",1],["KOSK0032","รถเข็นอเนกประสงค์พับได้ 2IN1 OST23452","",980],["AIMX0001","กรรไกรอัตโนมัติ 3.6V IMSS-36 IMAX","",0],["AIMX0003","เครื่องเจียรไร้แปรงถ่าน 4นิ้ว IMAG-20BL IMAX","",0],["AIMX0005","เครื่องตัด ขัด เซาะไฟฟ้า IMT300 IMAX","เครื่องตัด ขัด เซาะ",0],["AIMX0014","เร้าเตอร์อเนกประสงค์ IMR-400 IMAX","์เร้าเตอร์",0],["AIMX0017","เลื่อยวงเดือนจิ๋ว 400W IMS-400 IMAX","เลื่อยวงเดือนจิ๋ว",0],["AIMX0021","สว่านยิงสกรูอัตโนมัติ IAS-500 IMAX","",0],["AIMX0036","เครื่องลับดอกสว่านไฟฟ้า IMG-100 IMAX","เครื่องลับดอกสว่านไฟฟ้า IMG-100 IMAX",0],["AIMX0068","สว่าน IMAX-BLACK 12V IMCD-12M IMAX V.22","สว่าน",0],["AIMX0909","บล็อกแบตไร้แปรงถ่าน 20V IMIW20BL IMAX","",0],["BIMX0002","โต๊ะเลื่อยวงเดือน 10 นิ้ว IMTS-254 IMAX","โต๊ะเลื่อยวงเดือน 10 นิ้ว IMTS-254 IMAX",0],["DIMX0006","ตะไบลับเลื่อยโซ่ IMCK-07 IMAX","",0],["DIMX0009","สิ่ว 3 ตัวชุด IMAX","",0],["EIMX0004","ปืนอัดฉีดแรงดันสูงไร้สาย แบต2ก้อน 20V IMPC-005GT IMAX","ปืนอัดฉีดแรงดันสูงไร้สาย",1],["AOSK0502","สายสะพายไหล่สำหรับยึดเครื่องบล็อกไฟฟ้าไร้สาย OPCIW933-01 OSUKA","",70],["AOSK0531","สายสะพายไหล่สำหรับยึดเครื่องบล็อกไฟฟ้าไร้สาย OPCIW932-01 OSUKA","",127],["AIMX0024","เลื่อยชักไร้สาย 20V IMRS20 IMAX","",0],["AIMX0067","สว่านแบตเตอรี่ 3ระบบ 20V แบต2ก้อน IMCD-20GT IMAX","สว่านแบตเตอรี่",0],["BIMX0003","โต๊ะเลื่อยวงเดือน 8 นิ้ว IMAX","โต๊ะเลื่อยวงเดือน",0],["AOSK0527","สว่านกระแทกไร้สาย OCHD804-N","",689],["AOSK0528","สว่านกระแทกไร้สาย OCHD804-D1","",2983],["AOSK0529","สว่านกระแทกไร้สาย OCHD804-D2","",11116],["EIMX0002","ปั๊มน้ำอัตโนมัติ 1นิ้ว 450W IMWP-450 IMAX","ปั๊มน้ำอัตโนมัติ",0],["DALS0006","ชุดบล็อกประแจแอลเปลี่ยนหัวได้ 10 PCS (AE10A) ALSO","ชุดบล็อกประแจแอลเปลี่ยนหัวได้",120],["DNOB0526","ประแจตัวแอลขันล้อ NO.21 NOBRAND","ประแจตัวแอลขันล้อ",600],["DYKM0001","บล็อกชุด 6เหลี่ยม 40ตัวชุด No.06-14601 YOKOMO","",126],["DIMX0010","ประแจหกเหลี่ยมหัวบอล 9ตัวชุด ขนาด 1.5-10mm สีเงิน I-MAX","ประแจหกเหลี่ยม",250],["DIMX1028","ประแจหกเหลี่ยมหัวตัด 9ตัวชุด ขนาด 1.5-10mm สีเงิน I-MAX","ประแจหกเหลี่ยม",500],["INOB0091","ใบวงเดือนตัดหญ้า 10นิ้ว NOBRAND","",2600],["JOSK0126","เครื่องตัดหญ้าไร้สาย OCBC512-E2 40V OSUKA","OCBC512-E2",5991],["IHTP0006","ลูกแม็กขาคู่ 419J HI-TOP","ลูกแม็กขาคู่",15],["KWIT0296","เหล็กดูดจานไฟ Yamaha Kawazaki Honda Wave110i WINTON","",50],["OCGT401-01","ใบมีดตัดหญ้าพลาสติกเหนียว 10 ใบ","",36],["KZUM0002","เหล็กดูดจานไฟ HONDA เวฟ 100-110-125 ZUMA","",30],["INOB0067","ดอกเจียรคาร์ไบด์ 3mm 10 ตัวชุด NOBAND","ดอกเจียร",200],["JOSK0125","เครื่องตัดหญ้าไร้สายไร้แปรงถ่าน 20v OCBC511U-E1 OSUKA","OCBC511U-E1",219],["NOSK0001","ไฟฉายไร้สาย 20V OCL301-N (ตัวเปล่า) OSUKA","OCL301-N",1872],["AOSK0459","สว่านกระแทกไร้สาย 150Nm 20v OSUKA OPCHD904-K1","",1839],["AOSK0463","บล็อกกระแทกไร้สาย 1600 Nm OPCIW932-K1","",1486],["AOSK0465","บล็อกกระแทกไร้สาย 2000 Nm OPCIW933-S1","",1439],["AOSK0482","เครื่องดักยุงไร้สาย OCBZ226-N","",1113],["AOSK0483","เครื่องดักยุงไร้สาย OCBZ226-M1","",261],["EOSK0033","เครื่องอัดฉีดไร้สาย OCPW608-M1","",3177],["KOKU0001","เครื่องขัดเงาสี 9218B HI-CLASS OKURA","เครื่องขัดเงา",0],["AOSK0507","ที่เก็บดอกไขควง OSBH020","OSBH020",12416],["JNOB0066N","ใบตัดหญ้านินจา 10นิ้ว 40ฟัน NOBRAND","",9],["EOSK0034","เครื่องอัดฉีดไร้สาย OCPW608-N","OCPW608-N",1670],["AOSK0470","แบตเตอรี่ TABLESS 16v 2.0AH  OCTB-1620","OCTB-1620",6213],["AIMX0035","ก้อนแบต สว่านแบต 24V IMCD24-2 IMAX (อะไหล่)","IMCD24-2",0],["AOSK0094","ก้อนแบต 20v 4.0Ah OCWB-204(สีเทา) OSUKA (อะไหล่) Aqua Guard V.24","OCWB-204",36],["AOSK0460","เครื่องตัดหลากวัสดุ 20v Osuka OPCCT871-N","OPCCT871-N",0],["AOSK0461","เครื่องตัดหลากวัสดุ 20v Osuka OPCCT871-K1","OPCCT871-K1",160],["AOSK0503","ใบตัด อิฐ กระเบื้อง หินอ่อน 3นิ้ว OSMSS01 OSUKA","OSMSS01",1359],["AOSK0504","ใบตัดท่อพลาสติก อะคริลิก OSHCS01 OSUKA","OSHCS01",2220],["AOSK0519","ชุดบล็อกหินเจียรไร้สาย OCK163-K2 OSUKA","OCK163-K2",784],["AOSK0437","สว่านกระแทกไร้สายไร้แปรงถ่าน 16v OCCHD002-A2-S OSUKA","OCCHD002-A2-S",9227],["AOSK0471","เครื่องชาร์จแบตเตอรี่ TABLESS 16v 1.5A  OSCTB-105","TABLESS 16v 1.5",411],["AOSK0500","ที่เก็บดอกไขควง OCCHD002-01","OCCHD002-01",1491],["INOB0136","ดอกสว่านเจาะเหล็ก 13 ตัวชุด (กล่องเหลือง)","ดอกสว่านเจาะเหล็ก",54],["HOSK0476","เสื้อ OSUKA x OXT Series ไซส์ Xl","",4],["HOSK0477","เสื้อ OSUKA x OXT Series ไซส์ XXL","",43],["HOSK0472","สแตนด์ตั้งโชว์ OSLIKA 1.8M SD-OSLIKA-01","",92],["HOSK0473","สแตนด์ตั้งโชว์ OSLIKA 0.6M SD-OSLIKA-02","",95],["HOSK0027","เสื้อยืดผ้ามัน ไซส์ XL OSUKA","",1],["AOSK0472","สว่านโรตารี่ไร้สายไร้แปรงถ่าน 20V OCRH852-K1 OSUKA","OCRH852-K1",6587],["AOSK0477","เซ็ต Combo ช่างไฟ OCK155-D2K2 OSUKA","OCK155-D2K2",2416],["AOSK0478","เซ็ต Combo ช่างแอร์ OCK156-D2K3 OSUKA","OCK156-D2K3",2801],["DNOB213","ประแจตัวแอลขันล้อ เบอร์ 21 NOBRAND","",1100],["AOSK0484","เครื่องนวดไร้สาย OCMG221-N","OCMG221-N",1485],["KNOB0103N","ผ้าขนแกะ 5นิ้ว(L) NOBRAND","",340],["HJAS0002","หน้ากากปรับแสงอัตโนมัติ JASIC LY200HS","",1],["AOSK0494","เต่าดูดฝุ่นติดผนัง OCDS-001 OSUKA","OCDS-001",4192],["JOSK0121","เลื่อยโซ่ไฟฟ้าไร้สายไร้แปรงถ่าน  20V OCMC536-K1 OSUKA","OCMC536-K1",0],["JOSK0122","เลื่อยโซ่ไฟฟ้าไร้สายไร้แปรงถ่าน  20V OCMC537-K1 OSUKA","OCMC537-K1",50],["JOSK0123","เลื่อยโซ่ไฟฟ้าไร้สายไร้แปรงถ่าน  20V PRO OCCS430-K1 OSUKA","OCCS430-K1",2476],["JOSK0022-02","ใบเลื่อยวงเดือนตัดหญ้า 8\" OSA-STTB-8 OSUKA","OSA-STTB-8",126],["Gift09","เบาะรองพนักพิงหลัง","",10],["AOSK0467","เลื่อยชักมือเดียวไร้สาย 20v Osuka OCRS841-M1","OCRS841-M1OCRS841-M1",1679],["AOSK0469","เลื่อยชักไร้สาย 20v Osuka OCRS842-M1","OCRS842-M1",1862],["AOSK0473","เลื่อยวงเดือนไร้สาย 5.5\" OCS827-K1","OCS827-K1",5711],["AOSK0476","ชุดสว่าน+เครื่องเจียรไร้สาย OCK151-K1M1","OCK151-K1M1",3657],["AOSK0474","บล็อกไฟฟ้าไร้สาย OSID832-K1","OSID832-K1",5315],["AOSK0475","เครื่องเจียรไร้สาย OCAG746-K1","OCAG746-K1",2139],["AOSK0187","ถาดเก็บเครื่องมือสำหรับกล่องเครื่องมือ OSMMS23108 OSUKA","OSMMS23108",215],["AOSK0492","แบตเตอรี่ TABLESS 20v 6.0AH OCTB-2060","OCTB-2060",2385],["AOSK0493","แบตเตอรี่ TABLESS 20v 9.0AH OCTB-2090","OCTB-2090",0],["AOSK0505","โซ่ 6นิ้ว PRO Level OSAC1064","OSAC1064",8920],["AOSK0506","โซ่ 8นิ้ว PRO Level OSAC1065","",3259],["IIMX0014","ใบตัดเหล็กทรงสี่เหลื่ยม 34mm สำหรับเครื่องตัดขัดเซาะ IMAX","",29],["AOSK0490","แบตเตอรี่ TABLESS 20v 2.0AH OCTB-2020","OCTB-2020",3562],["AOSK0491","แบตเตอรี่ TABLESS 20v 4.0AH OCTB-2040","OCTB-2040",16186],["DOSK0178","คีมอเนกประสงค์ 8 นิ้ว 7in1 OSP-08 OSUKA","OSP-08",953],["LOSK0001","TAPE OSLIKA brand, 20pcs/ctn-TAPE-020","",2000],["AOSK0413","ดอกไขควงแกนสลิม หัวแฉก PH2 ยาว 65mm. ชุด10ดอก OSUKA OSAF4076","OSAF4076",5259],["TSMT0001","เสื้อช่าง","",20],["KOSK0894","ดูดจานไฟ ชุดที่2 Yamaha,kawasaki,wave110i OSUKA","",259],["KNOB0019","ชุดถอดกรองน้ำมันเครื่อง 23PCS (กล่องน้ำเงิน)","",60],["KNOB0104N","แม่แรงสะพาน 1.5T NOBRAND","",308],["AOSK0318","เครื่องขัดอเนกประสงค์ไร้สาย OCTS626-N OSUKA","OCTS626-N",138],["AOSK0201","เลื่อยจิ๊กซอว์ไร้สาย OCJS867-N 20V OSUKA","OCJS867-N",807],["AOSK0454","สว่านกระแทกไร้สาย 105 Nm OPCHD903-N OSUKA","OPCHD903-N",1000],["AOSK0455","สว่านกระแทกไร้สาย 105 Nm OPCHD903-K1 OSUKA","OPCHD903-K1",875],["JOSK0026","เครื่องตัดแต่งพุ่มไม้ไร้สาย 20v OCHT436-N OSUKA (เฉพาะตัวเครื่อง)","OCHT436-N",207],["HOSK0008","ไวนิลงานช่าง 2x1เมตร OSUKA","ไวนิลงานช่าง",134],["HOSK0024","ไวนิล 3x1เมตร พื้นหลังแดงโลโก้ OSUKA","ไวนิล 3x1",14],["AOSK0099","ไขควงกระแทกไร้สาย 20V OCID821-N OSUKA","OCID821-N",0],["BBON0005N","เครื่องวัดระดับเลเซอร์ 12เส้น สีเขียว (พร้อมขาตั้ง) BONCHI","เครื่องวัดระดับเลเซอร์",2],["AOSK0225","ด้ามฟรีไร้สายไร้แปรงถ่าน OCRW861-D1 OSUKA","OCRW861-D1",2271],["AOSK0346","กระเป๋าช่างไฟฟ้ามืออาชีพ ขนาดใหญ่ 3IN1 OSMTP23303 OSUKA","OSMTP23303",1636],["AOSK0356","กระเป๋าช่างไฟฟ้า ขนาดกลาง OSMTP23306 OSUKA","OSMTP23306",1553],["DKTN0077","ประแจแหวนข้างปากตาย 7mm. NO.1060-07 KINGTONY","",1],["AOSK0227","Combo Set ชุดงานไม้ OCK165-D1M2 OSUKA","OCK165-D1M2",165],["HOSK0470","เสื้อ OSUKA x Top Secret","",3],["DOSK0151","เหล็กงัดยาง 12นิ้ว(สีดำ) OSST-12 Osuka","",2098],["CNOB0031","หัวขัดห้องน้ำสีเหลือง 3ตัว ชุด","",130],["DNOB0144","ประแจตัวแอลขันล้อ NO.17 NOBRAND","ประแจตัวแอลขันล้อ",20],["MNOB0047","ถุงมือ สีแดง ไซส์ L","",161],["AOSK0147","เครื่องตัด-ขัด-เซาะอเนกประสงค์ไร้สาย OCMT791-M1 OSUKA","OCMT791-M1",87],["KNOB0094N","ขาตั้งรถยนต์เล็ก 3T 3WHEEL","",70],["KNOB0098N","ขาตั้งรถยนต์ใหญ่ 3T 3WHEEL","",30],["AOSK0329","เครื่องเจียรคอตรงไร้สาย 20V OCDG963-N OSUKA","OCDG963-N",326],["HOSK0471","กระติกน้ำ OSUKA X Top Secret","กระติกน้ำ",106],["INOB0908","ใบตัดหินเจียรสีดำ/สีเขียว 10ใบ/ชุด (สีละ5ใบ)","",262],["INOB0153","ใบมีดตัดหญ้า 3 แฉก BCB-3T (ซองเขียว)","",3],["AOSK0148","เครื่องขัดกระดาษทรายไร้สาย OCWS877-N (เฉพาะตัวเครื่อง) OSUKA","OCWS877-N",786],["AOSK0202","ปืนเป่าลมร้อนไร้สาย 20V OCHG771-N OSUKA","OCHG771-N",1492],["KOKU0019","แม่แรงตะเข้ 3 ตัน โหลดเตี้ย 2 สูบตัว OK-3EL OKURA","OK-3EL",11],["AOSK0171","ชุดสว่าน-บล็อกไร้สายไร้แปรงถ่าน OCK158-D2 OSUKA","OCK158-D2",1481],["AOSK0172","ชุดบล็อก-เครื่องเจียรไร้สายไร้แปรงถ่าน OCK159-M2 OSUKA","OCK159-M2",1415],["AOSK0205","ไขควงกระแทกไร้สาย 20V OCID821U-N (เฉพาะตัวเครื่อง) OSUKA","OCID821U-N",870],["AOSK0438","พัดลมเจ็ทอเนกประสงค์ 20v OCJF449-N OSUKA","",3241],["AOSK0439","พัดลมเจ็ทอเนกประสงค์ 20v OCJF449-M1 OSUKA","",0],["KNOB0026","ขันยางอะไหล่ แบน","",40],["KNOB0027","ขันยางอะไหล่ แฉก","",40],["INOB0032","กระดาษทรายกลม เบอร์ 80 OTNB-SP080 NOBRAND","กระดาษทรายกลม",870],["AOSK0435","ใบตัดสีดำ 4นิ้ว OSCDB-001-10 (ตัดเร็วพิเศษ) OSUKA 10ใบ/ชุด","OSCDB-001-10",12],["OCMC536-PT0009","บาร์นำ OCMC536-PT0009","OCMC536-PT0009",499],["AOSK0244","กระเป๋าสีแดงเล็ก OSUKA","กระเป๋าสีแดงเล็ก OSUKA",4],["AOSK0285","ถุงมือ ดำแดง (ใช้งานบ้านและสวน)","",3],["DCHA0001","ชุดดอกสว่านเจาะคอนกรีต เจาะปูน ก้านกลม 8 ตัวชุด CHAMPION","ชุดดอกสว่านเจาะคอนกรีต",52],["DHIB0004","ดอกไขควงลม 2x110 TWS2","",5],["DMSB150","ชุดดอกสว่าน 150 ดอก DMSB150 20460 DEMA","",18],["Gift03","ด้ามทำความสะอาดขนสัตว์","",14],["Gift04","แว่นสีเหลือง","",17],["Gift05","แว่นสีน้ำตาล","",13],["Gift07","แว่นสีเขียว","",1],["HOSK0022","แก้วเก็บอุณหภูมิ ขนาด 30oz (สีแดง) ฝาสีดำ OSVC-30 R/B OSUKA","OSVC-30 R/B",4],["HOSK0035-L","เสื้อคอปก Osuka - L","",3],["HOSK0035-S","เสื้อคอปก Osuka - S","",1],["IMEK0001","ดอกสว่าน 3IN1 (9ตัว/ชุด) Mekatang","",15],["INOB0034","กระดาษทรายกลม เบอร์ 120 OTNB-SP120 NOBRAND","กระดาษทรายกลม",100],["INOB0044","หัวจับกระดาษทรายตีนตุ๊กแก 4 นิ้ว","",6],["INOB0139","อแดปเตอร์ขันหลังคา 5 ตัวชุด M8x65 Nobrand","",28],["INOB0175N","ดอกสว่านเจาะไม้ 5ตัวชุด","",5],["IOSK0003","ใบตัดเหล็กสีทอง OB-100 Osuka","OB-100",11],["MIMX1072","ตลับกระเป้าผ้ารักษ์โลก IMAX","",8],["STK002","Sticker OSUKA สีทอง","",3],["STK005","สติ๊กเกอร์ของแถม 821U V1 (ตัวหนังสือแดง)","",41],["STK007","สติ๊กเกอร์ของแถม 821U V3 (มีคอมแอร์ในแผ่น)","",71],["ETOT0001","เครื่องฉีดน้ำแรงดันสูง1400W/105B TGTK14105TOTAL","",2],["AOSK0142","กล่องเก็บเครื่องมืออเนกประสงค์ ไซส์ S OSMMS23102 OSUKA","OSMMS23102",349],["AOSK0445","เครื่องตัดหญ้าไร้สาย OCBC510-E1 20V OSUKA","OCBC510-E1",941],["AOSK0508","เครื่องยิงตะปูคอนกรีตไร้สาย OCCN944-K1","OCCN944-K1",3570],["INOB0903","ใบตัดผนัง 5 นิ้ว OSASW9061 OSUKA","OSASW9061",197],["AOSK0077","เครื่องเจียรไร้สาย 20v OCAG746-N OSUKA (เฉพาะตัวเครื่อง)","OCAG746-N",1407],["AOSK0086","บล็อกไฟฟ้าไร้สายไร้แปรงถ่าน OSID831-N OSUKA (เฉพาะตัวเครื่อง)","OSID831-N",1128],["AOSK0100","ไขควงกระแทกไร้สาย 20V OCID821-D1 OSUKA","OCID821-D1",1],["AOSK0102","บล็อกไฟฟ้าไร้สายไร้แปรงถ่าน OSID830-M1 OSUKA","OSID830-M1",228],["AOSK0197","กระเป๋าเครื่องมือช่าง Connect+ OSMMS23106","OSMMS23106",55],["AOSK0228","สว่านกระแทกไร้สายไร้แปรงถ่าน 20v OSUKA OCHD802-D1","",2506],["AOSK0238","ไขควงกระแทกไร้สาย 20V OCID822U-D1 OSUKA","OCID822U-D1",953],["AOSK0245","กาพ่นสีไร้สาย 20v OCSG776-D1 OSUKA","OCSG776-D1",823],["AOSK0366","พวงกุญแจเก็บดอกไขควง/สว่าน แบบสวมไว OSUKA OSAF3241","OSAF3241",7127],["AOSK0414","ดอกไขควงแกนสลิม หัวแฉกกันลื่น PH2 ยาว 100mm. ชุด2ดอก OSUKA OSAF4077","OSAF4077",9183],["AOSK0415","ดอกไขควงแกนสลิม หัวแฉก PH2 ยาว 100mm. ชุด2ดอก OSUKA OSAF4078","OSAF4078",11190],["DSDY0001","ชุดไขควงสายอ่อนอเนกประสงค์ 43 pcs. SDY-94158 Horusdy Professional","ชุดไขควงสายอ่อน",55],["EOSK0028","เครื่องอัดฉีดแรงดันสูงไร้สาย OCPW607-N OSUKA (เฉพาะตัวเครื่อง)","OCPW607-N",1],["JOSK0030","เลื่อยไฟฟ้าไร้สาย ไร้แปรงถ่าน 6” 20v OCMC536-N OSUKA (เฉพาะตัวเครื่อง)","OCMC536-N",1],["NOSK0007","ไฟฉายไร้สาย OCL303-D1 OSUKA","OCL303-D1",1210],["AOSK0169","แท่นชาร์จแบตเตอรี่ 2.0A 20V OSCBC104 OSUKA","OSCBC104",548],["AOSK0195","ก้อนแบตเตอรี่ 12.0Ah Supreme Power OCSB-2012 OSUKA","OCBS-2012",2038],["AOSK0196","ก้อนแบตเตอรี่ 15.0Ah Supreme Power OCSB-2015 OSUKA","OCBS-2015",1786],["AOSK0109","สว่านโรตารี่ไร้สาย 20V OCRH852-N (เฉพาะตัวเครื่อง) OSUKA","OCRH852-N",1063],["STK004","สติ๊กเกอร์ของแถม ท้ายกระบะเหลือง","",35],["AOSK0297","ตะปูยิงคอนกรีต OCCN944-25 OSUKA","OCCN944-25",901],["INOB0048","ใบตัดเพชรแห้ง 4 นิ้ว สีแดง Nobrand","",227],["STK003","สติ๊กเกอร์ของแถม ท้ายกระบะแดง","",34],["ANOB0001","ดอกไขควงปลายบล็อก ขันน้อตหลังคาเบอร์#8 (จำนวน 1 ชิ้น)","",55],["AOSK0370","ไขควงไฟฟ้าไร้สาย 3.7v OSHT2001 OSUKA","OSHT2001",19125],["DYET0002","แหวนข้าง 14 PCS 8-24 YETI (L)","",6],["KOSK0026","ชุดแม่แรงตะเข้ 2.5T และขาตั้ง 3T OSFJ-2.5T&3T OSUKA","OSJS-2.5T & 3T",1],["NOSK0006","ไฟฉายไร้สาย OCL303-N (เฉพาะตัวเครื่อง) OSUKA","OCL303-N",2],["FBTA0001","เครื่องชาร์จแบตเตอรี่ 30A OS-24V30A Osuka","OS-24V30A",53],["DKTN0100","ดอกไขควงตอก 2x36mm 183602P KINGTONY","",5],["COSK0003","กาพ่นสีกาบน F-75 OSUKA","",10],["IHTP0002","ลูกแม็กขาเดี่ยว รุ่น F25 HI-TOP","ลูกแม็กขาเดี่ยว",35],["IHTP0016","ลูกแม็กขาเดี่ยว รุ่น F10 HI-TOP","ลูกแม็กขาเดี่ยว",51],["IHTP1032","F15","ลูกแม็กขาเดี่ยว",39],["AOSK0151","เซ็ต Combo ช่างแอร์ OCK156-D2M2P1 OSUKA","",0],["AOSK0276","ไส้กรองฝุ่น HEPA OCVC881-05 OSUKA","OCVC881-05",108],["AOSK0273","ถุงกระดาษเก็บฝุ่น 5ชิ้น OCVC881-02 OSUKA","OCVC881-02",134],["KNOB0022","กากบาทขันล้อรถตัวถูก เบอร์ 17,19,21,23 NOBRAND","",209],["DNOB0050","ประแจตัวแอลขันล้อ NO.19 NOBRAND","ประแจตัวแอลขันล้อ",422],["JOSK0043","ชุดใบมีดตัดหญ้าพลาสติก OSAC1002 OSUKA","OSAC1002",1493],["AOSK0377","ไส้กรองฟองน้ำ Z/OCVC882-01 OSUKA","OCVC882-01",488],["AOSK0378","แผ่นกรอง HEPA Z/OCVC882-05 OSUKA","OCVC882-05",500],["DOSK0152","เหล็กงัดยาง 16 นิ้ว OSST-16 OSUKA","",2],["AOSK0257","ไขควงกระแทกไร้สาย 20V OCID822U-N OSUKA","OCID822U-N",147],["AOSK0112","ทริมเมอร์ไร้สายไร้แปรงถ่าน OCCR886-N (เฉพาะตัวเครื่อง) OSUKA","OCCR886-N",284],["DWIT0003","ด้ามขันปอนด์ออโต้ ขนาด 1/2 X 250 WINTON","ด้ามขันปอนด์",4],["AOSK0448","พัดลมไร้สาย 9\" OCF762-P1 OSUKA","",2],["AOSK0449","พัดลมไร้สาย 9\" OCF762-Y1 OSUKA","",3],["AOSK0446","ถาดต่อกล่องเครื่องมือช่าง OSMMS23112 OSUKA","OSMMS23112",5100],["AOSK0379","ปลอกแขนดำ","",1177],["AOSK0440","ไขควงไฟฟ้าไร้สาย OSHT2002 OSUKA","OSHT2002",12872],["AOSK0443","ชุดตะไบลับคมเลื่อยโซ่ OSAG7021 OSUKA","OSAG7021",2648],["AOSK0450","เอ็นตัดหญ้าไนลอน 15เมตร (2มม.) OSNL-15 OSUKA","OSNL-15",2126],["AOSK0441","ชุดลูกบล็อกกระแทกเดือยโผล่ หกเหลี่ยม 1/2\" 10ตัว/ชุด OSAF3212","OSAF3212",1441],["AOSK0442","ชุดลูกบล็อกกระแทก เดือยโผล่ผสม (หกเหลี่ยม,หัวดาว(หัวจีบ) 1/2\" 19ตัว/ชุด OSAF3213","OSAF3213",2855],["AOSK0444","ดอกโฮลซอเจาะคอนกรีต OSHS4022","OSHS4022",12359],["AOSK0371","ดอกไขควง หัวแฉก 2 ด้าน PH2 ยาว 65mm. ชุด2ดอก OSAF4071 OSUKA","OSAF4071",3904],["AOSK0372","ดอกไขควง หัวแฉก 2 ด้าน PH2 ยาว 65mm. ชุด10ดอก OSAF4072 OSUKA","OSAF4072",2530],["AOSK0373","ดอกไขควงแกนสลิม หัวแฉกกันลื่น PH2 ยาว 65mm. ชุด2ดอก OSAF4073 OSUKA","OSAF4073",5651],["AOSK0374","ดอกไขควงแกนสลิม หัวแฉก PH2 ยาว 65mm. ชุด2ดอก OSAF4074  OSUKA","OSAF4074",3084],["AOSK0375","ดอกไขควงแกนสลิม หัวแฉกกันลื่น PH2 ยาว 65mm. ชุด10ดอก OSAF4075 OSUKA","OSAF4075",5087],["AOSK0385","บล็อกขันน็อตสกรู ขนาด 8mm. ยาว 48mm. ชุด2ชิ้น OSUKA OSAF4251","OSAF4251",14624],["AOSK0386","บล็อกขันน็อตสกรู ขนาด 10mm. ยาว 48mm. ชุด2ชิ้น OSUKA OSAF4252","OSAF4252",4639],["AOSK0387","บล็อกขันน็อตสกรู ขนาด 8mm. ยาว 65mm. ชุด2ชิ้น OSUKA OSAF4253","OSAF4253",4175],["AOSK0388","บล็อกขันน็อตสกรู ขนาด 10mm. ยาว 65mm. ชุด2ชิ้น OSUKA OSAF4254","OSAF4254",2280],["AOSK0389","ดอกสว่านอเนกประสงค์ ก้านหกเหลี่ยม ขนาด 3mm. OSAD3022","OSAD3022",1622],["AOSK0390","ดอกสว่านอเนกประสงค์ ก้านหกเหลี่ยม ขนาด 4mm. X 90mm. OSUKA OSAD3023","OSAD3023",1557],["AOSK0391","ดอกสว่านอเนกประสงค์ ก้านหกเหลี่ยม ขนาด 5mm. X 90mm. OSUKA OSAD3024","OSAD3024",1494],["AOSK0392","ดอกสว่านอเนกประสงค์ ก้านหกเหลี่ยม ขนาด 6.5mm. X 100mm. OSUKA OSAD3025","OSAD3025",5674],["AOSK0393","ดอกสว่านอเนกประสงค์ ก้านหกเหลี่ยม ขนาด 8mm. X 100mm. OSUKA OSAD3026","OSAD3026",2814],["AOSK0394","ดอกสว่านอเนกประสงค์ ก้านหกเหลี่ยม ขนาด 10mm. X 150mm. OSUKA OSAD3027","OSAD3027",1582],["AOSK0395","ดอกสว่านอเนกประสงค์ ก้านหกเหลี่ยม ขนาด 12mm. X 150mm. OSUKA OSAD3028","OSAD3028",2712],["AOSK0396","ชุดดอกสว่านอเนกประสงค์ ก้านหกเหลี่ยม ขนาด 3/4/5/6.5/8mm. 5ดอก OSUKA OSAD3029","OSAD3029",3066],["AOSK0397","ดอกสว่านอเนกประสงค์หัวคาร์ไบด์ ก้านหกเหลี่ยม ขนาด 3mm. X 95mm. OSUKA OSAD3030","OSAD3030",418],["AOSK0398","ดอกสว่านอเนกประสงค์หัวคาร์ไบด์ ก้านหกเหลี่ยม ขนาด 4mm. X 95mm. OSUKA OSAD3031","OSAD3031",803],["AOSK0399","ดอกสว่านอเนกประสงค์หัวคาร์ไบด์ ก้านหกเหลี่ยม ขนาด 5mm. X 95mm. OSUKA OSAD3032","OSAD3032",1648],["AOSK0401","ดอกสว่านอเนกประสงค์หัวคาร์ไบด์ ก้านหกเหลี่ยม ขนาด 8mm. X 100mm. OSUKA OSAD3034","OSAD3034",37],["AOSK0402","ดอกสว่านอเนกประสงค์หัวคาร์ไบด์ ก้านหกเหลี่ยม ขนาด 10mm. X 116mm. OSUKA OSAD3035","OSAD3035",1727],["AOSK0403","ดอกสว่านอเนกประสงค์หัวคาร์ไบด์ ก้านหกเหลี่ยม ขนาด 12mm. X 120mm. OSUKA OSAD3036","OSAD3036",679],["AOSK0405","ดอกสว่านอเนกประสงค์ ก้านกลม ขนาด 3mm. X 80mm. OSUKA OSAD3038","OSAD3038",1583],["AOSK0406","ดอกสว่านอเนกประสงค์ ก้านกลม ขนาด 4mm. X 80mm. OSUKA OSAD3039","OSAD3039",1678],["AOSK0407","ดอกสว่านเจาะคอนกรีตอเนกประสงค์ ก้านสามเหลี่ยม ขนาด 5mm. X 83mm. OSUKA OSAD3040","OSAD3040",1282],["AOSK0408","ดอกสว่านเจาะคอนกรีตอเนกประสงค์ ก้านสามเหลี่ยม ขนาด 6.5mm. X 100mm. OSUKA OSAD3041","OSAD3041",2315],["AOSK0409","ดอกสว่านเจาะคอนกรีตอเนกประสงค์ ก้านสามเหลี่ยม ขนาด 8mm. X 118mm. OSUKA OSAD3042","OSAD3042",2021],["AOSK0410","ดอกสว่านเจาะคอนกรีตอเนกประสงค์ ก้านสามเหลี่ยม ขนาด 10mm. X 120mm. OSUKA OSAD3043","OSAD3043",1241],["AOSK0411","ดอกสว่านเจาะคอนกรีตอเนกประสงค์ ก้านสามเหลี่ยม ขนาด 12mm. X 123mm. OSUKA OSAD3044","OSAD3044",1431],["AOSK0412","ชุดดอกสว่านอเนกประสงค์หัวคาร์ไบด์ ก้านกลม,ก้านสามเหลี่ยม ขนาด 3/4/5/6.5/8mm. 5ดอก OSUKA OSAD3045","OSAD3045",607],["AOSK0416","ดอกไขควงแกนสลิม หัวแฉก PH2 ยาว 150mm. ชุด2ดอก OSUKA OSAF4079","OSAF4079",6627],["AOSK0417","ดอกไขควงแกนสลิม หัวแฉก PH2 ยาว 150mm. ชุด2ดอก OSUKA OSAF4080","OSAF4080",6843],["AOSK0418","ดอกไขควงแกนสลิม หัวแฉก PH2 ยาว 200mm. ชุด2ดอก OSUKA OSAF4081","OSAF4081",2158],["AOSK0419","ชุดดอกไขควงแกนสลิม หัวแฉก PH2 ยาว 25/50/65/70/90/150mm. 6ดอก OSUKA OSAF4082","OSAF4082",16665],["AOSK0433","หัวจี้จุด OCJB847-01 OSUKA","OCJB847-01",1],["AOSK0434","หัวเติมลม OCJB847-02 OSUKA","OCJB847-02",478],["ITIG0024","ดอกไขควงหัวแฉก 65mm PH2 ก้านหกเหลี่ยม OSAD3021 OSUKA","",87039],["AOSK0280","พัดลมไร้สาย 9\" OCF762-M1 OSUKA","OCF762-M1",5286],["AOSK0367","แผงแบ่งช่องกล่อง Size S Connect+ OSMMS23109 OSUKA","OSMMS23109",417],["AOSK0368","แผงแบ่งช่องกล่องลิ้นชัก OSMMS23110 OSUKA","OSMMS23110",394],["AOSK0369","ที่วางระดับน้ำ Connect+ OSMMS23111 OSUKA","OSMMS23111",2104],["AOSK0382","เครื่องเป่าลมไร้สาย 20v OCJB847-N OSUKA","OCJB847-N",769],["AOSK0383","เครื่องเป่าลมไร้สาย 20v OCJB847-M1 OSUKA","OCJB847-M1",3328],["AOSK0384","กระเป๋าใส่อุปกรณ์ช่างคาดเอว OSMTP23314","OSMTP23314",3694],["AOSK0420","ไฟฉายพับได้พร้อมแม่เหล็กไร้สาย 20v OCL304-N OSUKA","OCL304-N",612],["AOSK0428","ถุงมือเซฟตี้ OPG31001 OSUKA","OPG31001",35079],["AOSK0429","สว่านไร้สายไร้แปรงถ่าน 16v OCCD001-A1-S OSUKA","OCCD001-A1-S",1770],["AOSK0430","สว่านกระแทกไร้สายไร้แปรงถ่าน 16v OCCHD002-A1-S OSUKA","OCCHD002-A1-S",738],["AOSK0431","ใบตัดหินเจียรสีดำ 4นิ้ว OSCDB-001 (ตัดเร็วพิเศษ) OSUKA","OSCDB-001 (ตัดเร็วพิเศษ)",67287],["AOSK0432","ใบตัดหินเจียรสีเขียว 4นิ้ว OSCDG-002 (ทนทานพิเศษ) OSUKA","OSCDG-002 (ทนทานพิเศษ)",4112],["AOSK0234","เครื่องดูดฝุ่นไร้สาย 20V OCVC782-M1 OSUKA","OCVC782-M1",1032],["AOSK0421","ไฟฉายพับได้พร้อมแม่เหล็กไร้สาย 20v OCL304-D1 OSUKA","OCL304-D1",2169],["KOSK0031","รถเข็นพับได้อเนกประสงค์ OST23451 OSUKA","OST23451",886],["AOSK0381","บล็อกไฟฟ้าไร้สายไร้แปรงถ่าน 20v OSID832-E1 OSUKA","OSID832-E1",6324],["AOSK0380","ฐานแม่เหล็กติดแบตเตอรี่ OSMB020 OSUKA","OSMB020",1051],["AOSK0330","เครื่องเจียรคอตรงไร้สาย 20V OCDG963-M1","OCDG963-M1",738],["AOSK0364","แว่นตาเซฟตี้ เลนส์ใส OPG31021 OSUKA","OPG31021",3140],["AOSK0365","แว่นตาเซฟตี้ เลนส์ดำ OPG31022 OSUKA","OPG31022",3084],["AOSK0300","เครื่องปั๊มแวคคั่มไร้สาย 20v OCVP896-N OSUKA","OCVP896-N",374],["AOSK0376","ปลอกแม่เหล็กใส่ดอกไขควง OSAF4231 OSUKA","OSAF4231",4510],["AOSK0343","สายพยุงหลังสำหรับเข็มขัดช่าง OSMTP23313 OSUKA","OSMTP23313",1752],["AOSK0344","เข็มขัดช่าง พยุงหลัง OSMTP23301 OSUKA","OSMTP23301",1460],["AOSK0345","เข็มขัดช่าง OSMTP23302 OSUKA","OSMTP23302",3477],["AOSK0347","กระเป๋าใส่สว่าน OSMTP23304 OSUKA","OSMTP23304",2293],["AOSK0348","กระเป๋าใส่อุปกรณ์ช่าง และ สกรู ขนาดกลาง OSMTP23305 OSUKA","OSMTP23305",2009],["AOSK0349","กระเป๋าช่างอเนกประสงค์ + ตะขอเกี่ยวค้อน OSMTP23307 OSUKA","OSMTP23307",2187],["AOSK0351","กระเป๋าใส่อุปกรณ์ช่าง + ตะขอเกี่ยวค้อน OSMTP23308 OSUKA","OSMTP23308",2491],["AOSK0352","กระเป๋าช่างอเนกประสงค์ ขนาดเล็ก OSMTP23309 OSUKA","OSMTP23309",1428],["AOSK0353","กระเป๋าช่างไฟฟ้า ขนาดเล็ก OSMTP23310 OSUKA","OSMTP23310",1506],["AOSK0354","กระเป๋าช่างอเนกประสงค์ + เก็บตลับเมตร OSMTP23311 OSUKA","OSMTP23311",2916],["AOSK0355","คลิปล็อกยึดกระเป๋า (3ชิ้น) OSMTP23312 OSUKA","OSMTP23312",3314],["AOSK0358","บาร์โซ่เลื่อย 11.5 นิ้ว OCCS530-01 OSUKA","OCCS530-01",594],["AOSK0359","โซ่เลื่อยไร้สาย 11.5 นิ้ว OCCS530-02 OSUKA","OCCS530-02",252],["AOSK0360","บาร์โซ่ 10 นิ้ว OCBC514-09 OSUKA","OCBC514-09",327],["AOSK0361","โซ่ 10 นิ้ว OCBC514-10 OSUKA","OCBC514-10",733],["AOSK0362","แผ่นกรอง Z/OCVC782-01 OSUKA","Z/OCVC782-01",489],["AIMX0070","ประกับล็อกใบหินเจียรแบบปลดล็อคในตัว OSAC1201","OSAC1201",1391],["AIMX0071","ประกับล็อกใบหินเจียร แบบล็อกอัตโนมัติ OSAC1202","OSAC1201",1080],["AOSK0341","เครื่องเป่าใบไม้เจ็ทไร้สาย 2IN1 20V OCMLB456-N OSUKA","OCMLB456-N",2689],["AOSK0342","เครื่องเป่าใบไม้เจ็ทไร้สาย 2IN1 20V OCMLB456-M1 OSUKA","OCMLB456-M1",5808],["AOSK0357","เครื่องเป่าใบไม้ไร้สาย OCLB446-E1 OSUKA","OCLB446-E1",1373],["AOSK0319","เครื่องเจียรไร้สาย OCAG746-E1 OSUKA","OCAG746-E1",6354],["AOSK0317","เครื่องขัดอเนกประสงค์ไร้สาย OCTS626-D1 OSUKA","OCTS626-D1",406],["AOSK0321","แปรงขนนุ่ม 6 นิ้ว OCTS626-01 OSUKA","OCTS626-01",607],["AOSK0322","แปรงขนแข็ง 6 นิ้ว OCTS626-02 OSUKA","OCTS626-02",967],["AOSK0323","ชุดจานรองด้ามติดกาวขนาด 6 นิ้ว OCTS626-03 OSUKA","OCTS626-03",167],["AOSK0324","หัวขนแกะ 6 นิ้ว OCTS626-04 OSUKA","OCTS626-04",1878],["AOSK0325","ฟองน้ำแบน 6 นิ้ว OCTS626-05 OSUKA","OCTS626-05",358],["AOSK0326","ฟองน้ำลอน 6 นิ้ว OCTS626-06 OSUKA","OCTS626-06",369],["AOSK0327","แผ่นใยขัด 6 นิ้ว OCTS626-07 OSUKA","OCTS626-07",232],["AOSK0328","แผ่นลงแว็กซ์ 6 นิ้ว OCTS626-08 OSUKA","OCTS626-08",344],["AOSK0340","หัวแปรงไนลอนขนาดเส้นผ่านศูนย์กลาง 205 มม. OCTS626-09 OSUKA","OCTS626-09",833],["AOSK0313","เลื่อยโซ่ไร้สายไร้แปรงถ่าย OCCS530-M2 OSUKA","OCCS530-M2",377],["AOSK0314","เครื่องดูดฝุ่นไร้สาย 20V OCVC782-N OSUKA","OCVC782-N",361],["AOSK0315","เครื่องยิงตะปู ยิงแม็ก 2IN1 ไร้สาย 20V OCNS889-D1 OSUKA","OCNS889-D1",1059],["AOSK0264","ไฟส่องพื้นที่ 3 ขาไร้สาย LED 20v OCL317-N OSUKA","OCL317-N",65],["AOSK0312","เลื่อยโซ่ไร้สายไร้แปรงถ่าย OCCS530-N OSUKA","OCCS530-N",300],["AOSK0260","จานเอ็นตัดหญ้า (รัศมี 330มม.) OSAC1004 OSUKA","OSAC1004",374],["AOSK0299","อะแดปเตอร์แปลงแบต เป็นพาวเวอร์แบงก์+ไฟฉาย OSBA5022","OSBA5022",8760],["AOSK0231","กล่องใส่เครื่องมือ OSP-M2 OSUKA","OSP-M2",295],["AOSK0233","กล่องใส่เครื่องมือ OSP-L2 OSUKA","OSP-L2",452],["AOSK0294","ตะปูยิงคอนกรีต OCCN944-22 OSUKA","OCCN944-22",3140],["AOSK0295","ตะปูยิงคอนกรีต OCCN944-32 OSUKA","OCCN944-32",825],["AOSK0296","ตะปูยิงคอนกรีต OCCN944-19 OSUKA","OCCN944-19",2756],["AOSK0298","ตะปูยิงคอนกรีต OCCN944-38 OSUKA","OCCN944-38",859],["INOB0152","ใบตัดหญ้าวงเดือน 10นิ้ว 40ฟัน NOBRAND","ใบตัดหญ้าวงเดือน",436],["AOSK0284","โซ่เลื่อยไร้สาย 6 นิ้ว OSAC1063 OSUKA","OSAC1063",1446],["MNOB0040","เก้าอี้พกพาพับได้ OSUKA","",152],["AOSK0270","OSBA5019 อะแดปเตอร์ต่อพ่วงแบตเตอรี่คาดเอว ยาว 1.2 เมตร OSUKA","OSBA5019",2649],["AOSK0265","เครื่องตัดหญ้าไร้สาย 20v OCBC513-M1 OSUKA","OCBC513-M1",325],["AOSK0266","เครื่องตัดหญ้าไร้สาย 40v OCBC514-M2 OSUKA","OCBC514-M2",236],["AOSK0243","กระเป๋าสีแดงใหญ่ OSUKA","กระเป๋าสีแดงใหญ่ OSUKA",2268],["AOSK0263","สว่านกระแทกไร้สาย 5IN1 20v OCHD-LT701-D1 OSUKA","OCHD-LT701-D1",1051],["AOSK0267","เครื่องยิงตะปูไร้สาย 20v OCCN944-Y1 OSUKA","OCCN944-Y1",1],["AOSK0283","หัวตัดไนลอน OCBC514-04 OSUKA","OCBC514-04",495],["AOSK0258","ใบมีดพลาสติก 10ใบ/ชุด OCBC512-01 OSUKA","OCBC512-01",7143],["AOSK0259","จานเอ็นตัดหญ้า (รัศมี 300มม.) OSAC1003 OSUKA","OSAC1003",1],["AOSK0281","หัวต่อตัดแต่งพุ่มด้านยาว OCBC514-01 OSUKA","OCBC514-01",88],["AOSK0282","หัวเลื่อยโซ่พร้อมด้าม OCBC514-02 OSUKA","OCBC514-02",83],["AOSK0287","ที่ชาร์จแบตเตอรี่ OCF763 OSUKA","OCF763-C",4158],["AOSK0253","ใบมีดวงเดือนตัดหญ้า 8\" OSAC1005 OSUKA","OSAC1005",654],["AOSK0254","ใบมีดวงเดือนตัดหญ้า 9\" OSAC1006 OSUKA","OSAC1006",1103],["AOSK0255","ใบมีดวงเดือนตัดหญ้า 10\" OSAC1007 OSUKA","OSAC1007",943],["AOSK0256","ใบมีดตัดหญ้า 3 แฉก OSAC1008 OSUKA","OSAC1008",861],["INOB0905","ใบตัดหินอ่อน 5 นิ้ว OSASW9042 OSUKA","OSASW9042",3449],["INOB0907","ใบตัดกระเบื้อง 5 นิ้ว OSASW9044 OSUKA","OSASW9044",3497],["AOSK0155","ก้อนแบต 20V 5.0Ah Aqua Guard OCWB-205 OSUKA","OCWB-205",9],["AOSK0262","เครื่องปั๊มแวคคั่มไร้สาย 20v OCVP896-Y1 OSUKA","OCVP896-Y1",1198],["INOB0904","ใบตัดหินอ่อน 4 นิ้ว OSASW9041 OSUKA","OSASW9041",1155],["INOB0906","ใบตัดกระเบื้อง 4 นิ้ว OSASW9043 OSUKA","OSASW9043",1405],["AOSK0246","เครื่องดูดฝุ่นไร้สาย OCVC781-N OSUKA","OCVC781-N",5],["AOSK0249","เครื่องดูดฝุ่นไร้สาย 20v OCVC781-M1 OSUKA","OCVC781-M1",494],["AOSK0251","เลื่อยไฟฟ้าไร้สายไร้แปรงถ่าน 8 นิ้ว OCMC537-M1 OSUKA","OCMC537-M1",882],["ABRV0008","เครื่องเจียร สาย12m 1000w BVAG-1000 BRAVO","DF-BVAG-1000",1],["AOSK0198","เครื่องดูดฝุ่นไร้สาย OCVC881-N 20v OSUKA","OCVC881-N",169],["AOSK0200","เครื่องดูดฝุ่นแบบกล่อง OCVC882-M1 OSUKA","OCVC882-M1",484],["AOSK0235","เครื่องตัดหญ้าไร้สาย OCBC511U-N 20V OSUKA","OCBC511U-N",303],["AOSK0236","สว่านไร้สายไร้แปรงถ่าน 5IN1 OCD701A-N OSUKA","OCD701A-N",464],["AOSK0240","Bar 8 นิ้ว OCMC537-01 OSUKA","OCMC537-01",945],["AOSK0241","โซ่ 8 นิ้ว OCMC537-02 OSUKA","OCMC537-02",1246],["KOSK0013N","ตัวตัดโซ่เหล็ก OSUKA","",499],["INOB0895","ใบตัด 4 นิ้ว 24 ฟัน OSASW9001 OSUKA","OSASW9001",1655],["INOB0899","ใบตัดอลูมิเนียม 4 นิ้ว OSASW9021 OSUKA","OSASW9021",262],["INOB0896","ใบตัด 4 นิ้ว 40 ฟัน OSASW9002 OSUKA","OSASW9002",985],["INOB0898","ใบตัด 5.5 นิ้ว 40 ฟัน OSASW9004 OSUKA","OSASW9004",1072],["INOB0897","ใบตัด 5.5 นิ้ว 24 ฟัน OSASW9003 OSUKA","OSASW9003",770],["INOB0900","ใบตัดอลูมิเนียม 5.5 นิ้ว OSASW9022 OSUKA","OSASW9022",707],["AOSK0237","เครื่องไล่ยุง OSBA5016 OSUKA","OSBA5016",322],["HOSK0013","ชั้นโชว์ SD-OSUKA-03 OSUKA","SD-OSLIKA-03",516],["AOSK0203","ปืนเป่าลมร้อนไร้สาย 20V OCHG771-M1 OSUKA","OCHG771-M1",1960],["AOSK0192","แท่นชาร์จแบตเตอรี่ 2 พอร์ต OSCBC106 OSUKA","OSCBC106",911],["AOSK0229","เครื่องตัดหญ้าไร้สาย OCBC511U-P1 20V OSUKA","OCBC511U-P1",64],["AOSK0206","เลื่อยไฟฟ้าไร้สายไร้แปรงถ่าน 8\" OCMC537-N 20V OSUKA","OCMC537-N",1350],["AOSK0113","สว่านไร้สาย OCHD800-N (เฉพาะตัวเครื่อง) OSUKA","OCHD800-N",86],["AOSK0156","พัดลมไร้สาย 9\" OCF762-N (ตัวเปล่า) OSUKA","OCF762-N",0],["OCCS430-PT0018","เฉพาะบาร์ 11.5\" OCCS430-PT0018 OSUKA","OCCS430-PT0018",1984],["JOSK0049","ด้ามตัดแต่งกิ่งสูงไร้สายไร้แปรงถ่าน OCMC2536 OSUKA","OCMC2536",4575],["AOSK0226","ไขควงกระแทกไร้สาย 20V OCID821U-D1 OSUKA","OCID821U-D1",2439],["AOSK0114","สว่านไร้สาย OCHD800-D1 OSUKA","OCHD800-D1",172],["AOSK0191","ด้ามตัดแต่งกิ่งสูง OCMC2536-01 OSUKA","OCMC2536-01",854],["AOSK0204","สว่านไร้สายไร้แปรงถ่าน 5IN1 OCD701A-D1 OSUKA","OCD701A-D1",0],["AOSK0194","ก้อนแบตเตอรี่ 5.0Ah Supreme Power OCBS-205","OCBS-205",2875],["AOSK0193","ก้อนแบตเตอรี่ 4.0Ah Supreme Power OCBS-204 OSUKA","OCBS-204",1222],["AOSK0170","แท่นชาร์จแบตเตอรี่ 4.0A 20V OSCBC105 OSUKA","OSCBC105",784],["AOSK0189","เครื่องตัดหญ้าไร้สาย OCBC512-P2 40V OSUKA","OCBC512-P2",247],["AOSK0173","เซ็ต Combo งานมอเตอร์ไซค์ 01 OCK160-D2M1 OSUKA","OCK160-D2M1",6],["AOSK0167","หัวจับดอกสว่าน 10 มม. Professional OSAD3002 OSUKA","OSAD3002",0],["AOSK0168","หัวจับดอกสว่าน 10 มม. Industrial OSAD3003 OSUKA","OSAD3003",2002],["AOSK0162","ด้ามฟรีไร้สายไร้แปรงถ่าน OCRW862-N (ตัวเปล่า) OSUKA","OCRW862-N",1068],["AOSK0163","ด้ามฟรีไร้สายไร้แปรงถ่าน OCRW862-D1 OSUKA","OCRW862-D1",1849],["AOSK0161","ด้ามฟรีไร้สายไร้แปรงถ่าน OCRW861-N (ตัวเปล่า) OSUKA","OCRW861-N",1294],["AOSK0190","เครื่องเป่าใบไม้ OCLB447-N 20V OSUKA","OCLB447-N",811],["AOSK0186","ถาดเก็บเครื่องมือสำหรับกล่องเครื่องมือ OSMMS23107 OSUKA","OSMMS23107",250],["AOSK0178","หัวไขควงชิดผนัง OCD701-01 OSUKA","OCD701-01",276],["AOSK0179","หัวไขควงมุมฉาก OCD701-02 OSUKA","OCD701-02",267],["AOSK0180","หัวไขควง OCD701-03 OSUKA","OCD701-03",357],["AOSK0160","สว่านไร้สายไร้แปรงถ่าน 5IN1 OCD701-D1 OSUKA","OCD701-D1",214],["AOSK0165","คลิปหนีบสว่านคาดเอว OSTB23401 OSUKA","OSTB23401",1932],["AOSK0158","พัดลมไร้สาย 9\" OCF763-N (ตัวเปล่า) OSUKA","OCF763-N",0],["JOSK0048","เลื่อยตัดแต่งกิ่งสูงไร้สาย 20V OCPS427-D1 OSUKA","OCPS427-D1",5933],["NOSK0003-01","ขาตั้งไฟส่องพื้นที่ 3 ขา OCL1316-01 OSUKA","OCL1316-01",214],["NOSK0003","ไฟส่องพื้นที่ 3 ขา LED 2in1 20V OCL316-N OSUKA","OCL316-N",361],["AOSK0145","แท่นชาร์จแบตเตอรี่ 1.5A OSCBC102 OSUKA","OSCBC102",2860],["AOSK0150","เซ็ต Combo ช่างไฟ OCK155-D2M2 OSUKA","OCK155-D2M2",786],["AOSK0153","เซ็ตก้อนแบต 20V 8.0Ah พร้อมแท่นชาร์จ 4.0A Supreme Power OCBS-208-4A OSUKA","OCBS-208-4A",909],["AOSK0154","ก้อนแบต 20V 10.0Ah Supreme Power OCB-2010 OSUKA","OCB-2010",2434],["NOSK0005","ไฟฉายไร้สาย OCL302-D1 OSUKA","OCL302-D1",1098],["NOSK0004","ไฟฉายไร้สาย OCL302-N (เฉพาะตัวเครื่อง) OSUKA","OCL302-N",75],["NOSK0008","ไฟฉายไร้สาย 2IN1 OCK153-D1 OSUKA","OCK153-D1",3017],["AOSK0152","ก้อนแบต 20V 8.0Ah Supreme Power OCB-208 OSUKA","OCB-208",4573],["AOSK0111","เลื่อยจิ๊กซอว์ไร้สายไร้แปรงถ่าน OCJS866-N (เฉพาะตัวเครื่อง) OSUKA","OCJS866-N",470],["OCCS430-PT0017","โซ่ 11.5\" OCCS430-PT0017 OSUKA","OCCS430-PT0017",0],["AOSK0140","กล่องเครื่องมือฝาใสใส่อะไหล่ OSMMS23101 OSUKA","OSMMS23101",0],["AOSK0143","กล่องเก็บเครื่องมือพร้อมลิ้นชัก OSMMS23104 OSUKA","OSMMS23104",551],["AOSK0144","กล่องเครื่องมือแบบล้อลาก OSMMS23105 OSUKA","OSMMS23105",651],["AOSK0141","ชุดกล่องเก็บเครื่องมือ OSMMS23101-05 OSUKA","OSMMS23101-05",1091],["AOSK0138","กล่องเก็บเครื่องมืออเนกประสงค์ ไซส์ M OSMMS23103 OSUKA","OSMMS23103",2773],["JOSK0046","เลื่อยโซ่ไร้สาย 20V OCCS430-N (เฉพาะตัวเครื่อง) OSUKA","OCCS430-N",773],["JOSK0047","เลื่อยโซ่ไร้สาย 20V OCCS430-P1 OSUKA","OCCS430-P1",511],["AOSK0110","แท่นชาร์จแบตเตอรี่ 2 พอร์ต OSCBC103 OSUKA","OSCBC103",718],["AOSK0106","กาพ่นสีไร้สาย 20V OCSG776-N (เฉพาะตัวเครื่อง) OSUKA","OCSG776-N",1682],["KOSK0029","เครื่องเติมลมไร้สาย 20V OCAI786-N (เฉพาะตัวเครื่อง) OSUKA","OCAI786-N",1455],["KOSK0030","เครื่องเติมลมไร้สาย 20V OCAI786-D1 OSUKA","",2139],["JOSK0045","ใบมีดพลาสติก 10ใบ/ชุด OCBC511-02 OSUKA","OCBC511-02",3968],["AOSK0108","เลื่อยวงเดือนไร้สาย 5.5\" 20V OCS827-N (เฉพาะตัวเครื่อง) OSUKA","OCS827-N",324],["AOSK0103","สว่านโรตารี่ไร้สาย 20V OCRH852-M1 OSUKA","OCRH852-M1",6873],["AOSK0104","เลื่อยวงเดือนไร้สาย 5.5\" 20V OCS827-M1 OSUKA","OCS827-M1",6704],["AOSK0101","ชุดสว่าน-ไขควงกระแทกไร้สายไร้แปรงถ่าน 20V OCK152-D2 OSUKA","OCK152-D2",3200],["KOSK0028","ชุดลูกบล็อกกระแทกยาว 1/2\" 10ลูก/ชุด OSAF3211 OSUKA","OSAF3211",17260],["AOSK0097","ก้อนแบต 20v 7.5Ah OCB-2075(สีเทา) OSUKA (อะไหล่) V.24","OCB-2075",482],["AOSK0088","บล็อกไฟฟ้าไร้สายไร้แปรงถ่าน OSID832-N OSUKA (เฉพาะตัวเครื่อง)","OSID832-N",607],["AOSK0083","ที่ชาร์จแบตเตอรี่ OSDC-1.0A OSUKA (อะไหล่) V.24","OSDC-1.0A",4492],["AOSK0085","บล็อกไฟฟ้าไร้สายไร้แปรงถ่าน OSID831-M1 OSUKA","OSID831-M1",5695],["JOSK0027","เครื่องตัดแต่งพุ่มไม้ไร้สาย 20v OCHT436-M1 OSUKA","OCHT436-M1",2335],["AOSK0092","บล็อกแบตเตอรี่ไร้สายไร้แปรงถ่าน 20V Lite สีเทา OSID-LT520 OSUKA V.24 (กล่องแดง)","OSID-LT520",2015],["AOSK0091","บล็อกแบตเตอรี่ไร้สายไร้แปลงถ่าน 20V สีเทา OSID-520 OSUKA V.24 (ตัวใหม่)","OSID-520",12452],["JOSK0029-01","ท่อเป่าแบบหัวแบน OCLB446-P1","OCLB446-01",119],["JOSK0031","เลื่อยไฟฟ้าไร้สาย ไร้แปรงถ่าน 6” 20v OCMC536-M1 OSUKA","OCMC536-M1",4751],["JOSK0028","เครื่องเป่าใบไม้ไร้สาย OCLB446-N OSUKA (เฉพาะตัวเครื่อง)","OCLB446-N",824],["EOSK0029","เครื่องอัดฉีดแรงดันสูงไร้สาย OCPW607-P1 OSUKA","OCPW607-P1",0],["AOSK0079","ชุดสว่าน+หินเจียร ไร้สายไร้แปรงถ่าน 20v OCK151-M2 OSUKA","OCK151-M2",7890],["AOSK0081","ก้อนแบต 20v 4.0Ah OCB-204(สีเทา) OSUKA (อะไหล่) V.24","OCB-204",8920],["AOSK0080","ก้อนแบต 20v 2.0Ah OCB-202(สีเทา) OSUKA (อะไหล่) V.24","OCB-202",2533],["AOSK0073","กรรไกรตัดกิ่งไร้สาย 20v OSUKA OCMPP451-D1","OCMPP451-D1",1617],["AOSK0072","กรรไกรตัดกิ่งไร้สาย 20v OSUKA OCMPP451-N (เฉพาะตัวเครื่อง)","OCMPP451-N",1325],["AIMX0030","ก้อนแบต 20v 2.0Ah Together IMCB-202 IMAX","IMB-2.0A",355],["AOSK0060","ก้อนแบต 20v 5.0Ah OCB-205(สีเทา) OSUKA (อะไหล่) V.24","OCB-205",1196],["IHTP0014","ลูกแม็กขาคู่ รุ่น 413J HI-TOP","",5],["KOSK0022","แม่แรงกระปุก 20T OSH-020H OSUKA(ทรงสูง)","แม่แรงกระปุก",119],["AOSK0001","เครื่องขัดสีเหลือง 5นิ้ว DWE6401 OSUKA","DWE6401",0],["AOSK0071","สว่านกระแทกไร้สายไร้แปรงถ่าน 20v OSUKA OCHD802-D2","OCHD802-D2",10701],["BHTP0001","ลูกแม็กขาคู่ รุ่น 422J HI-TOP","ลูกแม็กขาคู่",9],["IHTP0004","ลูกแม็กขาเดี่ยว รุ่น F20 HI-TOP","ลูกแม็กขาเดี่ยว",9],["KOSK0019","แม่แรงกระปุก 5T OSH-005 OSUKA","แม่แรงกระปุก",532],["KOSK0893","ดูดจานไฟ ชุดที่1 Honda wave 100,110,125 OSUKA","",6],["MOSK0871","สนับแข้ง OSPS-01 OSUKA","",8]];
+var LOW = 10, PAGE = 100;
+/* ===== SETUP: paste your Google Sheet "Publish to web" CSV link between the quotes below ===== */
+var SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSCMKPrx3tHsLOk8QQAB6XvfHea10DMo5yL7BmxWMBXoO0-R5sP8TIbxEIoRi8JwFEffVpRH_x3TnEc/pub?gid=0&single=true&output=csv";
+/* Rows listed here are hidden from clients (bill books, claimed goods). */
+var HIDE_SKU = ['BV001','BV002','BV003','CLAIM001'];
+
+function build(rows){
+  return rows.map(function(r){
+    var q=r[3], s = q<=0 ? 'out' : (q<=LOW ? 'low' : 'in');
+    return {sku:r[0], name:r[1], alias:r[2], qty:q, status:s, hay:(r[0]+' '+r[1]+' '+r[2]).toLowerCase()};
+  });
+}
+var items = build(RAW);
+
+function parseCSV(text){
+  var rows=[], row=[], f='', q=false, i, c;
+  for(i=0;i<text.length;i++){
+    c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){f+='"';i++} else q=false }
+      else f+=c;
+    } else if(c==='"') q=true;
+    else if(c===','){row.push(f);f=''}
+    else if(c==='\n'){row.push(f);rows.push(row);row=[];f=''}
+    else if(c!=='\r') f+=c;
+  }
+  if(f.length||row.length){row.push(f);rows.push(row)}
+  return rows;
+}
+function fromSheet(csv){
+  var all=parseCSV(csv), h=-1, i;
+  for(i=0;i<Math.min(all.length,15);i++){
+    if(all[i].join('|').toLowerCase().match(/รหัสสินค้า|sku/)){h=i;break}
+  }
+  var head = h>=0 ? all[h].map(function(x){return String(x).toLowerCase()}) : [];
+  function find(re,fb){for(var k=0;k<head.length;k++) if(re.test(head[k])) return k; return fb}
+  var cs=find(/รหัส|sku/,0), cn=find(/ชื่อสินค้า|product/,1), ca=find(/ชื่อย่อ|short/,2), cq=find(/ใช้ได้|available|qty|stock/,3);
+  var out=[];
+  for(i=h+1;i<all.length;i++){
+    var r=all[i], sku=(r[cs]||'').trim();
+    if(!sku || HIDE_SKU.indexOf(sku)>-1) continue;
+    var q=parseInt(String(r[cq]||'0').replace(/[^0-9-]/g,''),10);
+    if(isNaN(q)||q<0) q=0;
+    out.push([sku,(r[cn]||'').trim(),(r[ca]||'').trim(),q]);
+  }
+  return out;
+}
+function loadLive(){
+  if(!SHEET_CSV_URL) return;
+  $('asof').textContent='Loading latest stock...';
+  var sep = SHEET_CSV_URL.indexOf('?')>-1 ? '&' : '?';
+  fetch(SHEET_CSV_URL+sep+'t='+Date.now(),{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text() })
+    .then(function(t){
+      var rows=fromSheet(t);
+      if(!rows.length) throw new Error('No rows');
+      items=build(rows);
+      $('asof').textContent='Live stock, checked '+new Date().toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      state.shown=PAGE; render();
+    })
+    .catch(function(){ $('asof').textContent='Could not load live stock. Showing saved copy from 26 Oct 2026.' });
+}
+var state = {q:'', filter:'all', key:'sku', dir:1, shown:PAGE};
+var $ = function(id){return document.getElementById(id)};
+var LABEL = {in:'In stock', low:'Low stock', out:'Out of stock'};
+var ORDER = {in:2, low:1, out:0};
+
+function esc(s){return s.replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function terms(){return state.q.toLowerCase().split(/\s+/).filter(Boolean)}
+function hl(text, ts){
+  if(!ts.length) return esc(text);
+  var low = text.toLowerCase(), marks = new Array(text.length).fill(false);
+  ts.forEach(function(t){var i=low.indexOf(t);while(i>-1){for(var j=i;j<i+t.length;j++)marks[j]=true;i=low.indexOf(t,i+t.length)}});
+  var out='', on=false;
+  for(var i=0;i<text.length;i++){
+    if(marks[i]&&!on){out+='<mark>';on=true}
+    if(!marks[i]&&on){out+='</mark>';on=false}
+    out+=esc(text[i]);
+  }
+  return on?out+'</mark>':out;
+}
+function cmp(a,b){
+  var k=state.key, d=state.dir, r;
+  if(k==='qty') r=a.qty-b.qty;
+  else if(k==='status') r=ORDER[a.status]-ORDER[b.status];
+  else r=String(a[k]).localeCompare(String(b[k]),'en',{numeric:true,sensitivity:'base'});
+  if(r===0) r=a.sku.localeCompare(b.sku,'en',{numeric:true});
+  return r*d;
+}
+function matches(){
+  var ts=terms();
+  return items.filter(function(it){
+    if(state.filter!=='all' && it.status!==state.filter) return false;
+    for(var i=0;i<ts.length;i++) if(it.hay.indexOf(ts[i])<0) return false;
+    return true;
+  }).sort(cmp);
+}
+function counts(){
+  var ts=terms(), c={all:0,in:0,low:0,out:0};
+  items.forEach(function(it){
+    for(var i=0;i<ts.length;i++) if(it.hay.indexOf(ts[i])<0) return;
+    c.all++; c[it.status]++;
+  });
+  return c;
+}
+function renderChips(){
+  var c=counts();
+  var defs=[['all','All'],['in','In stock'],['low','Low'],['out','Out of stock']];
+  $('chips').innerHTML=defs.map(function(d){
+    return '<button type="button" class="chip" data-f="'+d[0]+'" aria-pressed="'+(state.filter===d[0])+'">'+d[1]+' <span class="n">'+c[d[0]]+'</span></button>';
+  }).join('');
+}
+function render(){
+  var list=matches(), ts=terms();
+  var part=list.slice(0,state.shown);
+  $('rows').innerHTML=part.map(function(it){
+    return '<tr>'+
+      '<td class="c-sku sku">'+hl(it.sku,ts)+'</td>'+
+      '<td class="c-name name">'+hl(it.name,ts)+'</td>'+
+      '<td class="c-alias alias">'+(it.alias?hl(it.alias,ts):'')+'</td>'+
+      '<td class="c-qty qty'+(it.qty===0?' zero':'')+'">'+it.qty.toLocaleString('en-US')+'</td>'+
+      '<td class="c-status status"><span class="pill p-'+it.status+'">'+LABEL[it.status]+'</span></td>'+
+    '</tr>';
+  }).join('');
+  $('empty').hidden = list.length>0;
+  var rest=list.length-part.length;
+  $('foot').hidden = rest<=0;
+  if(rest>0) $('more').textContent='Show '+Math.min(PAGE,rest)+' more ('+rest.toLocaleString('en-US')+' left)';
+  $('count').textContent = list.length.toLocaleString('en-US')+' of '+items.length.toLocaleString('en-US')+' products';
+  $('clear').className = state.q ? 'on' : '';
+  renderChips();
+  document.querySelectorAll('thead th').forEach(function(th){
+    var on = th.getAttribute('data-k')===state.key;
+    if(on) th.setAttribute('aria-sort', state.dir===1?'ascending':'descending'); else th.removeAttribute('aria-sort');
+    th.querySelector('.arrow').innerHTML = on && state.dir===-1 ? '&#9660;' : '&#9650;';
+  });
+  var sel=state.key+'-'+(state.dir===1?'asc':'desc');
+  var opt=$('sortsel'); if([].some.call(opt.options,function(o){return o.value===sel})) opt.value=sel;
+}
+$('q').addEventListener('input',function(e){state.q=e.target.value.trim();state.shown=PAGE;render()});
+$('clear').addEventListener('click',function(){$('q').value='';state.q='';state.shown=PAGE;render();$('q').focus()});
+$('chips').addEventListener('click',function(e){
+  var b=e.target.closest('.chip'); if(!b) return;
+  state.filter=b.getAttribute('data-f'); state.shown=PAGE; render();
+});
+document.querySelector('thead').addEventListener('click',function(e){
+  var th=e.target.closest('th'); if(!th) return;
+  var k=th.getAttribute('data-k');
+  if(state.key===k) state.dir*=-1; else {state.key=k; state.dir=(k==='qty')?-1:1;}
+  state.shown=PAGE; render();
+});
+$('sortsel').addEventListener('change',function(e){
+  var p=e.target.value.split('-'); state.key=p[0]; state.dir=p[1]==='asc'?1:-1; state.shown=PAGE; render();
+});
+$('more').addEventListener('click',function(){state.shown+=PAGE;render()});
+document.addEventListener('keydown',function(e){
+  if(e.key==='/' && document.activeElement!==$('q')){e.preventDefault();$('q').focus()}
+  if(e.key==='Escape' && document.activeElement===$('q') && state.q){$('clear').click()}
+});
+render();
+loadLive();
+</script>
+
+</body>
+</html>
