@@ -124,6 +124,19 @@ mark{background:#fff2a8;color:inherit;border-radius:3px;padding:0 1px}
 }
 .sortbar{display:none;gap:8px;align-items:center;margin-bottom:12px;font-size:14px;color:var(--muted)}
 .sortbar select{font:inherit;font-size:14px;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff}
+.pr{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px}
+td.pr.cost{color:var(--muted)}
+@media (min-width:721px){
+  table{min-width:1300px}
+  td.c-name{min-width:260px}
+  .scroll{max-height:calc(100vh - 90px);max-height:calc(100dvh - 90px);overflow:auto}
+  thead th{position:sticky;top:0;z-index:2;box-shadow:inset 0 -1px 0 var(--line)}
+}
+@media (max-width:720px){
+  td.pr{display:flex;justify-content:space-between;grid-column:1/-1;font-size:13px}
+  td.pr::before{content:attr(data-l);color:var(--muted)}
+  td.pr.first{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
@@ -155,6 +168,8 @@ mark{background:#fff2a8;color:inherit;border-radius:3px;padding:0 1px}
       <option value="name-asc">Product A to Z</option>
       <option value="qty-desc">Stock, high to low</option>
       <option value="qty-asc">Stock, low to high</option>
+      <option value="fb-asc">Facebook price, low to high</option>
+      <option value="fb-desc">Facebook price, high to low</option>
     </select>
   </div>
 
@@ -168,6 +183,14 @@ mark{background:#fff2a8;color:inherit;border-radius:3px;padding:0 1px}
             <th scope="col" data-k="alias"><button type="button">Short name <span class="arrow">&#9650;</span></button></th>
             <th scope="col" data-k="qty" class="num"><button type="button">Available <span class="arrow">&#9650;</span></button></th>
             <th scope="col" data-k="status"><button type="button">Status <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="c1" class="num"><button type="button">Cost <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="rsp" class="num"><button type="button">RSP <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="off" class="num"><button type="button">Offline <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="fb" class="num"><button type="button">Facebook <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="sn" class="num"><button type="button">Shopee Non-Mall <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="sm" class="num"><button type="button">Shopee Mall <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="tn" class="num"><button type="button">TikTok Non-Mall <span class="arrow">&#9650;</span></button></th>
+            <th scope="col" data-k="tm" class="num"><button type="button">TikTok Mall <span class="arrow">&#9650;</span></button></th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
@@ -176,7 +199,7 @@ mark{background:#fff2a8;color:inherit;border-radius:3px;padding:0 1px}
     <div class="empty" id="empty" hidden><strong>No products found</strong>Check the spelling or try fewer letters of the SKU.</div>
     <div class="foot" id="foot" hidden><button id="more" type="button"></button></div>
   </div>
-  <p class="note">Low stock means 10 units or fewer. Quantities are units available at the time of the last update.</p>
+  <p class="note">Low stock means 10 units or fewer. Quantities are units available at the time of the last update. Prices are in Baht (฿).</p>
 </div>
 
 <script>
@@ -186,11 +209,19 @@ var LOW = 10, PAGE = 100;
 var SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSCMKPrx3tHsLOk8QQAB6XvfHea10DMo5yL7BmxWMBXoO0-R5sP8TIbxEIoRi8JwFEffVpRH_x3TnEc/pub?gid=0&single=true&output=csv";
 /* Rows listed here are hidden from clients (bill books, claimed goods). */
 var HIDE_SKU = ['BV001','BV002','BV003','CLAIM001'];
+/* ===== PRICES ===== */
+/* Optional: paste the "Publish to web" CSV link of the Promotion sheet to keep prices live. Empty = use the saved copy below. */
+var PRICE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQoJC1lOUZxeer-Eefd0Z0qwK_4xnV0_MCeOey7CfBb3Xh9iv-B7eGgOejJKh0IB0_igyqYj3miasxg/pub?gid=0&single=true&output=csv";
+/* sku,costA,costB,costC,RSP,offline,facebook,shopeeNonMall,shopeeMall,tiktokNonMall,tiktokMall (saved from Promotion file_OSUKA, 28 Oct 2026) */
+var PRICE_DATA = "AOSK0189,5090,5158,5294,11580,6990,6990,7200,6990,7200,6990;AOSK0235,3210,3253,3339,7300,4190,4190,4320,4190,4320,4190;AOSK0266,4940,5006,5138,11230,6590,6990,7200,6990,7200,6990;AOSK0265,3590,3638,3734,8160,4790,4990,5140,4990,5140,4990;AOSK0473,2575,2613,2689,5860,3390,3390,3500,3390,3500,3390;JOSK0125,3585,3642,3756,7400,4790,4990,5140,4990,5140,4990;AOSK0257,1860,1885,1935,4230,2290,2290,2360,2290,2360,2290;AOSK0085,2460,2493,2559,5600,3290,3290,3390,3290,3390,3290;AOSK0238,2240,2270,2330,5100,2990,2990,3080,2990,3080,2990;AOSK0472,2715,2755,2835,6180,3590,3790,3910,3790,3910,3790;JOSK0123,2710,2750,2830,6160,3590,3790,3910,3790,3910,3790;AOSK0474,3320,3369,3467,7550,4390,4790,4940,4790,4940,4790;AOSK0104,2240,2270,2330,5100,2990,3090,3190,3090,3190,3090;AOSK0102,2540,2574,2642,5780,3390,3590,3700,3590,3700,3590;AOSK0475,2030,2060,2120,4620,2690,2790,2880,2790,2880,2790;AOSK0161,1640,1662,1706,3730,2190,2190,2260,2190,2260,2190;AOSK0212,4340,4398,4514,9860,5790,6490,6690,6390,6590,6390;AOSK0073,1940,1966,2018,4420,2590,2690,2780,2690,2780,2690;JOSK0132,3380,3430,3529,7690,4490,4990,5140,4980,5130,4980;AOSK0088,2310,2341,2403,5260,3090,3290,3390,3290,3390,3290;AOSK0226,1865,1890,1940,4250,2490,2590,2670,2590,2670,2590;AOSK0445,3120,3166,3258,7090,4190,4590,4730,4590,4730,4590;JOSK0130,4560,4627,4762,10360,6090,6890,7100,6710,6920,6710;AOSK0162,1790,1814,1862,4080,2390,2490,2570,2490,2570,2490;AOSK0209,3970,4023,4129,9030,5290,5990,6170,5840,6020,5840;AOSK0449,2725,2762,2835,6200,3590,4340,4480,4010,4140,4010;JOSK0047,2465,2498,2564,5600,3290,3590,3700,3590,3700,3590;JOSK0127,2960,3004,3091,6730,3890,4390,4530,4360,4500,4360;AOSK0455,2710,2750,2830,6160,3590,3990,4110,3990,4110,3990;AOSK0103,2390,2422,2486,5430,3190,3490,3600,3490,3600,3490;AOSK0225,1940,1966,2018,4420,2590,2790,2880,2790,2880,2790;JOSK0129,4200,4262,4386,9550,5590,6390,6590,6180,6370,6180;AOSK0447,2305,2336,2398,5250,3090,3670,3790,3390,3500,3390;JOSK0027,1865,1890,1940,4250,2490,2690,2780,2690,2780,2690;AOSK0205,1490,1510,1550,3390,1990,2090,2160,2090,2160,2090;JOSK0122,2235,2268,2334,5090,2990,3290,3390,3290,3390,3290;AOSK0098,1860,1885,1935,4230,2490,2690,2780,2690,2780,2690;AOSK0382,1040,1054,1082,2380,1390,1390,1440,1390,1440,1390;AOSK0319,1790,1814,1862,4080,2390,2590,2670,2590,2670,2590;AOSK0383,1790,1814,1862,4080,2390,2590,2670,2590,2670,2590;JOSK0046,1790,1814,1862,4080,2390,2590,2670,2590,2670,2590;AOSK0072,1415,1434,1472,3220,1890,1990,2050,1990,2050,1990;AOSK0332,2915,2954,3032,6630,3890,4390,4530,4290,4420,4290;AOSK0163,2090,2118,2174,4760,2790,3090,3190,3080,3180,3080;JOSK0121,2030,2060,2120,4620,2690,2990,3080,2990,3080,2990;AOSK0439,2030,2060,2120,4620,2690,2990,3080,2990,3080,2990;AOSK0333,3215,3258,3344,7320,4290,4890,5040,4730,4880,4730;AOSK0448,1975,2002,2055,4490,2590,3140,3240,2910,3000,2910;AOSK0086,1710,1733,1779,3890,2290,2490,2570,2490,2570,2490;AOSK0263,1265,1282,1316,2890,1690,1790,1850,1790,1850,1790;AOSK0251,2010,2037,2091,4580,2690,2990,3080,2960,3050,2960;JOSK0124,2389,2427,2503,4930,3190,3590,3700,3520,3630,3520;AOSK0313,4260,4317,4431,9690,5690,6590,6790,6270,6460,6270;AOSK0476,3255,3303,3399,7400,4290,4990,5140,4790,4940,4790;AOSK0207,2690,2726,2798,6120,3590,4090,4220,3960,4080,3960;AOSK0150,7340,7438,7634,16680,9790,11490,11840,10800,11130,10800;JOSK0128,3250,3298,3393,7390,4290,4990,5140,4780,4930,4780;AOSK0164,1110,1125,1155,2530,1490,1590,1640,1590,1640,1590;AOSK0381,2990,3030,3110,6800,3990,4590,4730,4400,4540,4400;AOSK0312,2990,3030,3110,6800,3990,4590,4730,4400,4540,4400;AOSK0210,2990,3030,3110,6800,3990,4590,4730,4400,4540,4400;AOSK0211,2990,3030,3110,6800,3990,4590,4730,4400,4540,4400;AOSK0077,1040,1054,1082,2380,1390,1490,1540,1490,1540,1490;AOSK0069,1040,1054,1082,2380,1390,1490,1540,1490,1540,1490;JOSK0031,1790,1814,1862,4080,2390,2690,2780,2640,2720,2640;JOSK0131,3100,3146,3237,7050,4090,4790,4940,4560,4700,4560;AOSK0109,1710,1733,1779,3890,2290,2590,2670,2520,2600,2520;AOSK0341,1265,1282,1316,2890,1690,1890,1950,1870,1930,1870;JOSK0026,1260,1277,1311,2880,1690,1890,1950,1860,1920,1860;AOSK0342,1940,1966,2018,4420,2590,2990,3080,2860,2950,2860;JOSK0030,1115,1130,1160,2550,1490,1690,1750,1640,1690,1640;AOSK0236,1490,1510,1550,3390,1990,2290,2360,2200,2270,2200;AOSK0108,1490,1510,1550,3390,1990,2290,2360,2200,2270,2200;JOSK0049,1110,1125,1155,2530,1490,1690,1750,1640,1690,1640;AOSK0113,665,674,692,1520,890,990,1020,980,1010,980;AOSK0191,1415,1434,1472,3220,1890,2190,2260,2090,2160,2090;AOSK0101,2915,2954,3032,6630,3890,4590,4730,4290,4420,4290;AOSK0114,965,978,1004,2200,1290,1490,1540,1420,1470,1420;AOSK0204,1715,1738,1784,3900,2290,2690,2780,2530,2610,2530;AOSK0491,1150,1167,1201,2620,1490,1830,1890,1690,1750,1690;AOSK0092,1265,1282,1316,2890,1690,1990,2050,1870,1930,1870;KOSK0029,890,902,926,2030,1190,1390,1440,1310,1350,1310;KOSK0030,1260,1277,1311,2880,1690,1990,2050,1860,1920,1860;AOSK0228,1190,1206,1238,2720,1590,1890,1950,1750,1810,1750;AOSK0206,1190,1206,1238,2720,1590,1890,1950,1750,1810,1750;AOSK0406,34,34,35,140,50,70,80,50,60,50;NOSK0003,2840,2881,2962,5810,0,4070,4200,4070,4200,4070;AOSK0267,11240,11390,11690,25530,14990,17870,18410,16530,17030,16530;AOSK0508,10870,11030,11350,24690,14490,17280,17800,15990,16470,15990;AOSK0478,9450,9589,9867,21480,12590,15030,15490,13890,14310,13890;AOSK0477,8090,8209,8447,18380,10790,12860,13250,11900,12260,11900;AOSK0227,8000,8100,8300,18180,10690,12720,13110,11770,12130,11770;AOSK0262,7190,7286,7478,16330,9590,11430,11780,10580,10900,10580";
+var PRICES = {};
+PRICE_DATA.split(';').forEach(function(r){var a=r.split(',');PRICES[a[0]]=a.slice(1).map(Number)});
+var PK = ['c1','rsp','off','fb','sn','sm','tn','tm'], PI = [0,3,4,5,6,7,8,9], PL = ['Cost','RSP','Offline','Facebook','Shopee Non-Mall','Shopee Mall','TikTok Non-Mall','TikTok Mall'];
 
 function build(rows){
   return rows.map(function(r){
     var q=r[3], s = q<=0 ? 'out' : (q<=LOW ? 'low' : 'in');
-    return {sku:r[0], name:r[1], alias:r[2], qty:q, status:s, hay:(r[0]+' '+r[1]+' '+r[2]).toLowerCase()};
+    return {sku:r[0], name:r[1], alias:r[2], qty:q, status:s, pr:PRICES[r[0]]||null, hay:(r[0]+' '+r[1]+' '+r[2]).toLowerCase()};
   });
 }
 var items = build(RAW);
@@ -265,6 +296,7 @@ function hl(text, ts){
 function cmp(a,b){
   var k=state.key, d=state.dir, r;
   if(k==='qty') r=a.qty-b.qty;
+  else if(PK.indexOf(k)>-1){var n=PK.indexOf(k); r=(a.pr?a.pr[PI[n]]:-1)-(b.pr?b.pr[PI[n]]:-1)}
   else if(k==='status') r=ORDER[a.status]-ORDER[b.status];
   else r=String(a[k]).localeCompare(String(b[k]),'en',{numeric:true,sensitivity:'base'});
   if(r===0) r=a.sku.localeCompare(b.sku,'en',{numeric:true});
@@ -303,6 +335,7 @@ function render(){
       '<td class="c-alias alias">'+(it.alias?hl(it.alias,ts):'')+'</td>'+
       '<td class="c-qty qty'+(it.qty===0?' zero':'')+'">'+it.qty.toLocaleString('en-US')+'</td>'+
       '<td class="c-status status"><span class="pill p-'+it.status+'">'+LABEL[it.status]+'</span></td>'+
+      PK.map(function(k,n){return '<td class="pr'+(n===0?' cost':'')+(n===0?' first':'')+'" data-l="'+PL[n]+'">'+(it.pr?money(it.pr[PI[n]]):'\u2013')+'</td>'}).join('')+
     '</tr>';
   }).join('');
   $('empty').hidden = list.length>0;
@@ -340,8 +373,32 @@ document.addEventListener('keydown',function(e){
   if(e.key==='/' && document.activeElement!==$('q')){e.preventDefault();$('q').focus()}
   if(e.key==='Escape' && document.activeElement===$('q') && state.q){$('clear').click()}
 });
+function money(v){return v>0?'\u0E3F'+v.toLocaleString('en-US'):'\u2013'}
+function num(x){return parseFloat(String(x||'').replace(/[^0-9.]/g,''))||0}
+function loadPrices(){
+  if(!PRICE_CSV_URL) return;
+  fetch(PRICE_CSV_URL+(PRICE_CSV_URL.indexOf('?')>-1?'&':'?')+'t='+Date.now(),{cache:'no-store'})
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text() })
+    .then(function(t){
+      var all=parseCSV(t), c=-1, h=-1, i, k, list={}, n=0;
+      for(i=0;i<Math.min(all.length,15)&&h<0;i++){
+        c=all[i].map(function(x){return x.trim().toLowerCase()}).indexOf('sku'); if(c>-1) h=i;
+      }
+      if(h<0) throw new Error('No SKU header');
+      for(i=h+1;i<all.length;i++){
+        var r=all[i], sku=(r[c]||'').trim();
+        if(!sku||/delete|\u0E0B\u0E49\u0E33/i.test(r[c+1]||'')) continue;
+        var v=[]; for(k=3;k<=12;k++) v.push(num(r[c+k]));
+        list[sku]=v; n++;
+      }
+      if(!n) throw new Error('No rows');
+      PRICES=list; items.forEach(function(it){it.pr=PRICES[it.sku]||null}); render();
+    })
+    .catch(function(){});
+}
 render();
 loadLive();
+loadPrices();
 </script>
 
 </body>
