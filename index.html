@@ -438,7 +438,7 @@ function loadPrices(){
 }
 /* ===== ORDERS ===== */
 /* Paste the Google Apps Script web app URL (ends with /exec) here. */
-var ORDER_URL = "";
+var ORDER_URL = "https://script.google.com/macros/s/AKfycbybZw1z6G7GWoesqmh1wuXl29JefWv-_S-5mENj0gRtjMvl4JuSDZ5VqdIfqdcm9GrIxA/exec";
 var cart = {}, info = {};
 try{ cart=JSON.parse(localStorage.getItem('osuka_cart')||'{}')||{}; info=JSON.parse(localStorage.getItem('osuka_info')||'{}')||{} }catch(e){}
 function saveCart(){ try{localStorage.setItem('osuka_cart',JSON.stringify(cart))}catch(e){} }
