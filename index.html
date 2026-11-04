@@ -363,7 +363,8 @@ function fromSheet(csv){
     if(!sku || HIDE_SKU.indexOf(sku)>-1) continue;
     var q=parseInt(String(r[cq]||'0').replace(/[^0-9-]/g,''),10);
     if(isNaN(q)||q<0) q=0;
-    out.push([sku,(r[cn]||'').trim(),(r[ca]||'').trim(),q]);
+    function cl(x){x=(x||'').trim();return /^#N\/A$/i.test(x)?'':x}
+    out.push([sku,cl(r[cn]),cl(r[ca]),q]);
   }
   return out;
 }
